@@ -261,6 +261,81 @@ body{background:var(--felt-dark);font-family:'DM Mono',monospace;color:var(--tex
 .catb-lobby{background:rgba(52,152,219,0.15);color:#7db8ff;border:1px solid rgba(52,152,219,0.35)}.catb-lobby:not(:disabled):hover{background:rgba(52,152,219,0.28)}
 .catb-end{background:rgba(192,57,43,0.15);color:#ff9999;border:1px solid rgba(192,57,43,0.35)}.catb-end:not(:disabled):hover{background:rgba(192,57,43,0.3)}
 
+/* ══════════════════════════════════
+   PICTIONARY
+══════════════════════════════════ */
+#s-pic{background:radial-gradient(ellipse 80% 60% at 50% 30%,#1a0a2e 0%,#050510 70%);flex-direction:column;overflow:hidden;}
+.pic-top{background:rgba(5,5,20,0.95);border-bottom:1px solid rgba(201,168,76,0.15);padding:8px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;width:100%;gap:8px;}
+.pic-title{font-family:'Playfair Display',serif;font-size:1rem;color:var(--gold);letter-spacing:2px;flex-shrink:0;}
+.pic-word-box{background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:8px;padding:4px 14px;font-size:0.9rem;color:var(--gold);font-weight:700;letter-spacing:2px;text-align:center;min-width:80px;}
+.pic-word-box.hidden{filter:blur(6px);user-select:none;}
+.pic-info{font-size:0.6rem;color:var(--muted);letter-spacing:1px;flex-shrink:0;}
+/* Canvas area */
+.pic-canvas-wrap{flex:1;display:flex;position:relative;overflow:hidden;width:100%;}
+#pic-canvas{display:block;background:#fafaf8;cursor:crosshair;touch-action:none;}
+/* Toolbar */
+.pic-toolbar{background:rgba(5,5,20,0.97);border-top:1px solid rgba(201,168,76,0.12);padding:8px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0;width:100%;}
+.pic-colors{display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
+.pic-swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;flex-shrink:0;}
+.pic-swatch:hover{transform:scale(1.2);}
+.pic-swatch.active{border-color:#fff;transform:scale(1.25);}
+.pic-sizes{display:flex;gap:5px;align-items:center;}
+.pic-size-btn{width:28px;height:28px;border-radius:6px;border:1px solid rgba(201,168,76,0.25);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;}
+.pic-size-btn:hover,.pic-size-btn.active{background:rgba(201,168,76,0.15);border-color:var(--gold);}
+.pic-size-dot{border-radius:50%;background:#fff;pointer-events:none;}
+.pic-tools{display:flex;gap:5px;margin-left:auto;}
+.pic-tool-btn{padding:5px 10px;border-radius:6px;border:1px solid rgba(201,168,76,0.25);background:transparent;color:var(--text);font-family:'DM Mono',monospace;font-size:0.65rem;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+.pic-tool-btn:hover{background:rgba(201,168,76,0.12);border-color:var(--gold);}
+.pic-tool-btn.active{background:rgba(201,168,76,0.18);border-color:var(--gold);color:var(--gold);}
+.pic-tool-btn.danger{border-color:rgba(231,76,60,0.35);color:#ff9999;}.pic-tool-btn.danger:hover{background:rgba(231,76,60,0.15);}
+/* Right panel — scores + guessed */
+.pic-right{position:absolute;top:0;right:0;width:200px;height:100%;background:rgba(5,5,20,0.88);border-left:1px solid rgba(201,168,76,0.1);display:flex;flex-direction:column;overflow:hidden;z-index:5;}
+.pic-scores-head{font-size:0.56rem;letter-spacing:3px;text-transform:uppercase;color:var(--muted);padding:8px 10px 4px;}
+.pic-score-list{flex:1;overflow-y:auto;padding:0 6px 6px;}
+.pic-score-item{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:6px;margin-bottom:3px;font-size:0.7rem;}
+.pic-score-item.drawing{background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.25);}
+.pic-score-item.guessed{background:rgba(46,204,113,0.08);border:1px solid rgba(46,204,113,0.2);}
+.psi-name{flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.psi-pts{color:var(--gold);font-weight:700;flex-shrink:0;}
+.psi-tag{font-size:0.52rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);flex-shrink:0;}
+.psi-tag.drawing{color:var(--gold);}
+.psi-tag.correct{color:#2ecc71;}
+/* Guesser award buttons overlay */
+.pic-guess-overlay{position:absolute;bottom:0;left:0;right:200px;background:rgba(5,5,20,0.97);border-top:1px solid rgba(201,168,76,0.2);padding:10px 14px;display:none;flex-direction:column;gap:8px;z-index:10;}
+.pic-guess-overlay.show{display:flex;}
+.pic-guess-label{font-size:0.6rem;letter-spacing:2px;color:var(--gold);text-transform:uppercase;}
+.pic-guesser-btns{display:flex;flex-wrap:wrap;gap:6px;}
+.pic-guesser-btn{padding:7px 14px;border-radius:8px;border:1px solid rgba(46,204,113,0.4);background:rgba(46,204,113,0.1);color:#7dff7d;font-family:'DM Mono',monospace;font-size:0.76rem;cursor:pointer;transition:all 0.15s;}
+.pic-guesser-btn:hover{background:rgba(46,204,113,0.25);}
+.pic-guesser-btn:disabled{opacity:0.3;cursor:not-allowed;}
+/* Round over overlay */
+.pic-round-ov{position:fixed;inset:0;background:rgba(0,0,0,0.8);display:none;align-items:center;justify-content:center;z-index:60;}
+.pic-round-ov.show{display:flex;}
+.pic-round-box{background:rgba(5,5,20,0.97);border:2px solid var(--gold);border-radius:16px;padding:24px 32px;text-align:center;min-width:260px;box-shadow:0 0 40px rgba(201,168,76,0.25);}
+.pic-round-box h2{font-family:'Playfair Display',serif;font-size:1.5rem;color:var(--gold);margin-bottom:4px;}
+.pic-round-box .pic-word-reveal{font-size:1.1rem;color:var(--text);margin-bottom:14px;letter-spacing:2px;}
+.pic-round-scores{display:flex;flex-direction:column;gap:4px;margin-bottom:14px;text-align:left;}
+.prs-item{font-size:0.76rem;display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.06);}
+.prs-name{color:var(--text)}.prs-pts{font-weight:700;color:#2ecc71;}
+.pic-host-btns-round{display:flex;flex-direction:column;gap:7px;}
+/* Waiting for word overlay */
+.pic-waiting-word{position:absolute;inset:0;background:rgba(5,5,20,0.88);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;z-index:8;}
+.pic-waiting-word h3{font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--gold);}
+.pic-waiting-word p{font-size:0.76rem;color:var(--muted);letter-spacing:1px;}
+/* Word choice overlay (drawer picks word) */
+.pic-word-choice{position:absolute;inset:0;background:rgba(5,5,20,0.95);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;z-index:9;}
+.pic-word-choice h3{font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--gold);}
+.pic-word-choice p{font-size:0.72rem;color:var(--muted);letter-spacing:1px;}
+.pic-word-opts{display:flex;flex-direction:column;gap:8px;width:min(300px,90vw);}
+.pic-word-opt{padding:12px 20px;border-radius:10px;border:1px solid rgba(201,168,76,0.35);background:rgba(201,168,76,0.07);color:var(--text);font-family:'Playfair Display',serif;font-size:1rem;font-weight:700;cursor:pointer;transition:all 0.2s;text-align:center;}
+.pic-word-opt:hover{background:rgba(201,168,76,0.18);border-color:var(--gold);color:var(--gold);transform:translateY(-1px);}
+/* Timer arc */
+.pic-timer-wrap{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.pic-timer-num{font-size:0.76rem;color:var(--text);font-weight:700;min-width:28px;text-align:center;}
+.pic-timer-bar-outer{width:80px;height:5px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;}
+.pic-timer-bar-inner{height:100%;background:var(--gold);border-radius:3px;transition:width 1s linear;}
+.pic-timer-bar-inner.urgent{background:#e74c3c;}
+
 /* game over */
 #s-gameover .go-box{background:rgba(8,31,24,0.98);border:2px solid var(--gold);border-radius:20px;padding:38px 44px;text-align:center;box-shadow:0 0 60px rgba(201,168,76,0.2);}
 #s-gameover .go-box h2{font-family:'Playfair Display',serif;font-size:1.9rem;color:var(--gold);margin-bottom:8px}
@@ -327,6 +402,7 @@ body{background:var(--felt-dark);font-family:'DM Mono',monospace;color:var(--tex
         <div class="gt sel" id="gt-poker"><div class="gt-icon">🃏</div><div class="gt-name">Hold'em</div><div class="gt-desc">2–6</div></div>
         <div class="gt" id="gt-bj"><div class="gt-icon">🎰</div><div class="gt-name">Blackjack</div><div class="gt-desc">2–6</div></div>
         <div class="gt" id="gt-cat"><div class="gt-icon">🔤</div><div class="gt-name">Categories</div><div class="gt-desc">2–6</div></div>
+        <div class="gt" id="gt-pic"><div class="gt-icon">🎨</div><div class="gt-name">Pictionary</div><div class="gt-desc">3–6</div></div>
       </div>
       <button class="btn btn-gold" id="btn-start-game" style="display:none">Start Game</button>
     </div>
@@ -420,6 +496,66 @@ body{background:var(--felt-dark);font-family:'DM Mono',monospace;color:var(--tex
   <div class="cat-bottom-bar" id="cat-bottom-bar"><!-- rendered by JS --></div>
 </div>
 
+<!-- ═══════ PICTIONARY ═══════ -->
+<div class="screen" id="s-pic">
+  <div class="pic-top">
+    <span class="pic-title">🎨 Pictionary</span>
+    <div class="pic-timer-wrap">
+      <div class="pic-timer-bar-outer"><div class="pic-timer-bar-inner" id="pic-timer-bar" style="width:100%"></div></div>
+      <div class="pic-timer-num" id="pic-timer-num">90</div>
+    </div>
+    <div class="pic-word-box" id="pic-word-display">- - -</div>
+    <span class="pic-info" id="pic-info">Round 1</span>
+  </div>
+  <div class="pic-canvas-wrap" id="pic-canvas-wrap">
+    <canvas id="pic-canvas"></canvas>
+    <!-- Right panel: scores -->
+    <div class="pic-right">
+      <div class="pic-scores-head">Players</div>
+      <div class="pic-score-list" id="pic-score-list"></div>
+    </div>
+    <!-- Drawer: award a guesser -->
+    <div class="pic-guess-overlay" id="pic-guess-overlay">
+      <div class="pic-guess-label">✓ Someone guessed it! Award points to:</div>
+      <div class="pic-guesser-btns" id="pic-guesser-btns"></div>
+    </div>
+    <!-- Non-drawer waiting for word to be chosen -->
+    <div class="pic-waiting-word" id="pic-waiting-word" style="display:none">
+      <h3 id="pic-waiting-name">Player</h3>
+      <p>is choosing a word…</p>
+    </div>
+    <!-- Drawer: pick a word -->
+    <div class="pic-word-choice" id="pic-word-choice" style="display:none">
+      <h3>Pick a word to draw</h3>
+      <p>Only you can see this</p>
+      <div class="pic-word-opts" id="pic-word-opts"></div>
+    </div>
+  </div>
+  <div class="pic-toolbar" id="pic-toolbar">
+    <div class="pic-colors" id="pic-colors"></div>
+    <div class="pic-sizes" id="pic-sizes"></div>
+    <div class="pic-tools">
+      <button class="pic-tool-btn active" id="pic-tool-pen">✏ Pen</button>
+      <button class="pic-tool-btn" id="pic-tool-eraser">◻ Eraser</button>
+      <button class="pic-tool-btn danger" id="pic-tool-clear">Clear</button>
+    </div>
+  </div>
+  <!-- Round over overlay -->
+  <div class="pic-round-ov" id="pic-round-ov">
+    <div class="pic-round-box">
+      <h2>Round Over</h2>
+      <div class="pic-word-reveal" id="pic-word-reveal"></div>
+      <div class="pic-round-scores" id="pic-round-scores"></div>
+      <div class="pic-host-btns-round" id="pic-host-btns-round" style="display:none">
+        <button class="wbtn wbtn-deal"  id="btn-pic-nextround">Next Round</button>
+        <button class="wbtn wbtn-lobby" id="btn-pic-lobby">Change Game</button>
+        <button class="wbtn wbtn-end"   id="btn-pic-end">End Game</button>
+      </div>
+      <div class="wwait" id="pic-guest-wait" style="display:none">Waiting for host…</div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════ GAME OVER ═══════ -->
 <div class="screen" id="s-gameover">
   <div class="go-box"><h2>♠ Game Over</h2><p id="go-msg">Thanks for playing!</p><button id="btn-reload">Return to Lobby</button></div>
@@ -488,6 +624,7 @@ document.getElementById('btn-start-game').addEventListener('click',startGameFrom
 document.getElementById('gt-poker').addEventListener('click',()=>selectGame('poker'));
 document.getElementById('gt-bj').addEventListener('click',()=>selectGame('blackjack'));
 document.getElementById('gt-cat').addEventListener('click',()=>selectGame('categories'));
+document.getElementById('gt-pic').addEventListener('click',()=>selectGame('pictionary'));
 /* Poker */
 document.getElementById('p-slider').addEventListener('input',()=>{document.getElementById('p-raise-disp').textContent=document.getElementById('p-slider').value;});
 document.getElementById('p-btn-fold') .addEventListener('click',()=>pokerAction('fold'));
@@ -512,6 +649,13 @@ document.getElementById('bj-btn-dbl')  .addEventListener('click',()=>bjAction('d
 document.getElementById('btn-bj-newround').addEventListener('click',bjHostNewRound);
 document.getElementById('btn-bj-lobby')   .addEventListener('click',returnToRoom);
 document.getElementById('btn-bj-end')     .addEventListener('click',bjHostEnd);
+/* Pictionary */
+document.getElementById('btn-pic-nextround').addEventListener('click',picHostNextRound);
+document.getElementById('btn-pic-lobby')    .addEventListener('click',returnToRoom);
+document.getElementById('btn-pic-end')      .addEventListener('click',picHostEnd);
+document.getElementById('pic-tool-pen')    .addEventListener('click',()=>picSetTool('pen'));
+document.getElementById('pic-tool-eraser') .addEventListener('click',()=>picSetTool('eraser'));
+document.getElementById('pic-tool-clear')  .addEventListener('click',picClearCanvas);
 /* Reload */
 document.getElementById('btn-reload').addEventListener('click',()=>location.reload());
 
@@ -520,8 +664,9 @@ document.getElementById('btn-reload').addEventListener('click',()=>location.relo
 ══════════════════════════════════════ */
 function selectGame(g){
   selectedGame=g;
-  ['gt-poker','gt-bj','gt-cat'].forEach(id=>document.getElementById(id).classList.remove('sel'));
-  document.getElementById(`gt-${g==='poker'?'poker':g==='blackjack'?'bj':'cat'}`).classList.add('sel');
+  ['gt-poker','gt-bj','gt-cat','gt-pic'].forEach(id=>document.getElementById(id).classList.remove('sel'));
+  const map={poker:'gt-poker',blackjack:'gt-bj',categories:'gt-cat',pictionary:'gt-pic'};
+  if(map[g]) document.getElementById(map[g]).classList.add('sel');
 }
 
 async function createRoom(){
@@ -574,14 +719,16 @@ function listenRoom(){
       list.appendChild(d);
     });
     const n=Object.keys(players).length;
-    msg('room-msg',`${n} player${n!==1?'s':''} · ${n>=2?'Ready!':'Need at least 2'}`,n>=2?'ok':'wait');
-    if(isHost)document.getElementById('btn-start-game').style.display=n>=2?'block':'none';
+    const minP=selectedGame==='pictionary'?3:2;
+    msg('room-msg',`${n} player${n!==1?'s':''} · ${n>=minP?'Ready!':'Need at least '+minP}`,n>=minP?'ok':'wait');
+    if(isHost)document.getElementById('btn-start-game').style.display=n>=minP?'block':'none';
   });
   onValue(ref(db,`rooms/${roomCode}/status`),snap=>{
     const s=snap.val();
     if(s==='playing-poker'&&!inGame)  enterPoker();
     if(s==='playing-bj'&&!inGame)     enterBJ();
     if(s==='playing-cat'&&!inGame)    enterCat();
+    if(s==='playing-pic'&&!inGame)    enterPic();
     if(s==='room'){inGame=false;show('s-room');}
     if(s==='ended'&&!isHost)showGameOver('The host ended the game.');
   });
@@ -594,17 +741,20 @@ function leaveRoom(){
 
 async function startGameFromRoom(){
   if(!isHost)return;
-  if(selectedGame==='poker')await startPoker();
+  if(selectedGame==='poker')         await startPoker();
   else if(selectedGame==='blackjack')await startBJ();
-  else await startCat();
+  else if(selectedGame==='pictionary')await startPic();
+  else                               await startCat();
 }
 
 async function returnToRoom(){
   if(!isHost)return;
   inGame=false;
   if(catTimerInterval){clearInterval(catTimerInterval);catTimerInterval=null;}
+  if(picTimerInterval){clearInterval(picTimerInterval);picTimerInterval=null;}
   document.getElementById('p-win-ov').classList.remove('show');
   document.getElementById('bj-res-ov').classList.remove('show');
+  document.getElementById('pic-round-ov').classList.remove('show');
   if(gameRef)await set(gameRef,null);
   await update(ref(db,`rooms/${roomCode}`),{status:'room'});
 }
@@ -1382,6 +1532,408 @@ async function catHostEnd(){
       .sort((a,b)=>b.pts-a.pts);
     showGameOver(sorted.length?`🏆 ${sorted[0].name} wins with ${sorted[0].pts} pts!`:'Game over!');
   }else{showGameOver('Game over!');}
+}
+
+/* ══════════════════════════════════════════════════════════
+   PICTIONARY
+══════════════════════════════════════════════════════════
+   Min 3 players. Each player draws once per game (round-robin).
+   Drawer picks from 3 word options. Word encoded in Firebase (base64)
+   so guessers cannot cheat by reading the DB.
+   Drawer draws on canvas; strokes sync to Firebase in batches.
+   When someone guesses correctly, DRAWER clicks that player's name.
+   Points: guesser=10, drawer=10 for 1st correct/8 for 2nd/6 for 3rd...
+   After 90s timer or drawer clicks End Turn → round over → next drawer.
+   After every player has drawn once → game ends.
+══════════════════════════════════════════════════════════ */
+
+const PIC_WORDS=[
+  'Cat','Dog','House','Car','Tree','Sun','Moon','Star','Fish','Bird',
+  'Pizza','Robot','Dragon','Castle','Guitar','Tennis','Elephant','Rainbow',
+  'Volcano','Spaceship','Pirate','Submarine','Tornado','Lighthouse','Penguin',
+  'Helicopter','Cactus','Waterfall','Fireworks','Basketball','Umbrella','Clock',
+  'Bridge','Bicycle','Butterfly','Snowman','Camera','Diamond','Rocket','Crown',
+  'Treasure','Island','Desert','Jungle','Mountain','Ocean','Forest','City',
+  'Hospital','Library','Stadium','Airport','Carnival','Circus','Cowboy',
+  'Ninja','Wizard','Mermaid','Vampire','Zombie','Alien','Ghost','Sandwich',
+  'Popcorn','Skateboard','Trampoline','Sunglasses','Backpack','Compass',
+  'Magnet','Parachute','Telescope','Windmill','Igloo','Hammock','Trophy'
+];
+const PIC_TURN_SECONDS=90;
+
+let picState         = null;
+let picTimerInterval = null;
+let picCanvas        = null;
+let picCtx           = null;
+let picDrawing       = false;
+let picTool          = 'pen';
+let picColor         = '#111111';
+let picSize          = 6;
+let picLastX         = 0;
+let picLastY         = 0;
+let picStrokeBuffer  = [];
+let picFlushTimer    = null;
+let picIsDrawer      = false;
+let picLastStrokeCount = -1;
+
+function b64e(s){return btoa(unescape(encodeURIComponent(s)));}
+function b64d(s){try{return decodeURIComponent(escape(atob(s)));}catch{return '?';}}
+
+function picPickWords(){
+  const pool=[...PIC_WORDS];
+  const out=[];
+  while(out.length<3&&pool.length){
+    const i=Math.floor(Math.random()*pool.length);
+    out.push(pool.splice(i,1)[0]);
+  }
+  return out;
+}
+
+async function startPic(){
+  if(!isHost)return;
+  const ps=await get(ref(db,`rooms/${roomCode}/players`));
+  const pl=Object.entries(ps.val()||{}).map(([id,p])=>({id,...p})).sort((a,b)=>a.seat-b.seat);
+  if(pl.length<3){toast('Pictionary needs at least 3 players!');return;}
+  const drawerOrder=pl.map(p=>p.id);
+  const words=picPickWords();
+  const gs={
+    phase:'choosing',round:1,totalRounds:drawerOrder.length,
+    drawerOrder,drawerIndex:0,currentDrawer:drawerOrder[0],
+    wordOptions:words,wordEncoded:null,
+    scores:{},roundScores:{},guessedBy:[],
+    startedAt:null,strokes:{},strokeCount:0,players:{},
+  };
+  pl.forEach((p,i)=>{gs.scores[p.id]=0;gs.players[p.id]={name:p.name,seat:i};});
+  await set(ref(db,`rooms/${roomCode}/game`),gs);
+  await update(ref(db,`rooms/${roomCode}`),{status:'playing-pic'});
+}
+
+function enterPic(){
+  if(inGame)return; inGame=true;
+  show('s-pic');
+  picSetupCanvas();
+  picBuildToolbar();
+  gameRef=ref(db,`rooms/${roomCode}/game`);
+  onValue(gameRef,snap=>{
+    if(!snap.exists())return;
+    picState=snap.val();
+    renderPic(picState);
+  });
+}
+
+/* ── Canvas setup ── */
+function picSetupCanvas(){
+  picCanvas=document.getElementById('pic-canvas');
+  picCtx=picCanvas.getContext('2d');
+  picResizeCanvas();
+  window.addEventListener('resize',picResizeCanvas);
+  picCanvas.addEventListener('mousedown',picStartDraw);
+  picCanvas.addEventListener('mousemove',picMoveDraw);
+  picCanvas.addEventListener('mouseup',picEndDraw);
+  picCanvas.addEventListener('mouseleave',picEndDraw);
+  picCanvas.addEventListener('touchstart',e=>{e.preventDefault();picStartDraw(picTouchEvt(e));},{passive:false});
+  picCanvas.addEventListener('touchmove',e=>{e.preventDefault();picMoveDraw(picTouchEvt(e));},{passive:false});
+  picCanvas.addEventListener('touchend',e=>{e.preventDefault();picEndDraw();},{passive:false});
+}
+function picTouchEvt(e){const t=e.touches[0];const r=picCanvas.getBoundingClientRect();return{clientX:t.clientX,clientY:t.clientY,_r:r};}
+function picResizeCanvas(){
+  if(!picCanvas)return;
+  const wrap=document.getElementById('pic-canvas-wrap');
+  const w=Math.max(100,wrap.clientWidth-200);
+  const h=Math.max(100,wrap.clientHeight);
+  picCanvas.width=w;picCanvas.height=h;
+  picCanvas.style.width=w+'px';picCanvas.style.height=h+'px';
+  picRedrawStrokes(picState?.strokes||{});
+}
+function picGetXY(e){
+  const r=(e._r)||picCanvas.getBoundingClientRect();
+  const sx=picCanvas.width/r.width,sy=picCanvas.height/r.height;
+  return{x:Math.round((e.clientX-r.left)*sx),y:Math.round((e.clientY-r.top)*sy)};
+}
+function picStartDraw(e){
+  if(!picIsDrawer||picState?.phase!=='drawing')return;
+  picDrawing=true;
+  const p=picGetXY(e);picLastX=p.x;picLastY=p.y;
+  picStrokeBuffer=[{x:p.x,y:p.y}];
+}
+function picMoveDraw(e){
+  if(!picDrawing||!picIsDrawer)return;
+  const p=picGetXY(e);
+  picStrokeBuffer.push({x:p.x,y:p.y});
+  picDrawSeg(picCtx,picLastX,picLastY,p.x,p.y,picTool==='eraser'?'#fafaf8':picColor,picTool==='eraser'?picSize*3:picSize);
+  picLastX=p.x;picLastY=p.y;
+  if(!picFlushTimer)picFlushTimer=setTimeout(picFlushStroke,80);
+}
+function picEndDraw(){
+  if(!picDrawing||!picIsDrawer)return;
+  picDrawing=false;
+  clearTimeout(picFlushTimer);picFlushTimer=null;
+  picFlushStroke();
+}
+async function picFlushStroke(){
+  picFlushTimer=null;
+  if(!picStrokeBuffer.length||!picState||picState.phase!=='drawing')return;
+  const stroke={color:picTool==='eraser'?'#fafaf8':picColor,size:picTool==='eraser'?picSize*3:picSize,points:[...picStrokeBuffer]};
+  picStrokeBuffer=[];
+  const idx=picState.strokeCount||0;
+  await set(ref(db,`rooms/${roomCode}/game/strokes/${idx}`),stroke);
+  await set(ref(db,`rooms/${roomCode}/game/strokeCount`),idx+1);
+}
+function picDrawSeg(ctx,x1,y1,x2,y2,color,size){
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=size;ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+}
+function picRedrawStrokes(strokes){
+  if(!picCtx||!picCanvas)return;
+  picCtx.fillStyle='#fafaf8';picCtx.fillRect(0,0,picCanvas.width,picCanvas.height);
+  if(!strokes)return;
+  Object.values(strokes).forEach(s=>{
+    if(!s?.points)return;
+    const pts=Array.isArray(s.points)?s.points:Object.values(s.points);
+    if(!pts.length)return;
+    if(pts.length===1){
+      picCtx.save();picCtx.fillStyle=s.color;picCtx.beginPath();
+      picCtx.arc(pts[0].x,pts[0].y,s.size/2,0,Math.PI*2);picCtx.fill();picCtx.restore();return;
+    }
+    for(let i=1;i<pts.length;i++)picDrawSeg(picCtx,pts[i-1].x,pts[i-1].y,pts[i].x,pts[i].y,s.color,s.size);
+  });
+  picLastStrokeCount=Object.keys(strokes).length;
+}
+async function picClearCanvas(){
+  if(!picIsDrawer||!picState)return;
+  if(picCtx&&picCanvas){picCtx.fillStyle='#fafaf8';picCtx.fillRect(0,0,picCanvas.width,picCanvas.height);}
+  await set(ref(db,`rooms/${roomCode}/game/strokes`),{});
+  await set(ref(db,`rooms/${roomCode}/game/strokeCount`),0);
+  picLastStrokeCount=0;
+}
+
+/* ── Toolbar ── */
+const PIC_PALETTE=['#111111','#e74c3c','#e67e22','#f1c40f','#2ecc71','#1abc9c','#3498db','#9b59b6','#ec407a','#ffffff','#7f8c8d','#795548'];
+const PIC_SIZES=[3,6,12,20];
+function picBuildToolbar(){
+  const cc=document.getElementById('pic-colors');cc.innerHTML='';
+  PIC_PALETTE.forEach(c=>{
+    const sw=document.createElement('div');
+    sw.className='pic-swatch'+(c===picColor?' active':'');
+    sw.style.background=c;
+    if(c==='#ffffff')sw.style.border='2px solid rgba(200,200,200,0.5)';
+    sw.addEventListener('click',()=>{
+      picColor=c;picTool='pen';
+      document.querySelectorAll('.pic-swatch').forEach(s=>s.classList.remove('active'));
+      sw.classList.add('active');
+      document.getElementById('pic-tool-pen').classList.add('active');
+      document.getElementById('pic-tool-eraser').classList.remove('active');
+    });
+    cc.appendChild(sw);
+  });
+  const sc=document.getElementById('pic-sizes');sc.innerHTML='';
+  PIC_SIZES.forEach(sz=>{
+    const btn=document.createElement('button');btn.className='pic-size-btn'+(sz===picSize?' active':'');
+    const dot=document.createElement('div');dot.className='pic-size-dot';
+    dot.style.width=dot.style.height=Math.min(sz,18)+'px';
+    btn.appendChild(dot);
+    btn.addEventListener('click',()=>{
+      picSize=sz;
+      document.querySelectorAll('.pic-size-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+    sc.appendChild(btn);
+  });
+}
+function picSetTool(tool){
+  picTool=tool;
+  document.getElementById('pic-tool-pen').classList.toggle('active',tool==='pen');
+  document.getElementById('pic-tool-eraser').classList.toggle('active',tool==='eraser');
+}
+
+/* ── Main render ── */
+function renderPic(state){
+  if(!state)return;
+  picIsDrawer=state.currentDrawer===myId;
+  const phase=state.phase;
+  const drawing=picIsDrawer&&phase==='drawing';
+
+  /* Canvas cursor & toolbar */
+  picCanvas.style.cursor=drawing?'crosshair':'not-allowed';
+  const toolbar=document.getElementById('pic-toolbar');
+  toolbar.style.display=phase==='drawing'?'flex':'none';
+  document.querySelectorAll('.pic-swatch,.pic-size-btn').forEach(el=>{
+    el.style.pointerEvents=drawing?'auto':'none';el.style.opacity=drawing?'1':'0.4';
+  });
+  ['pic-tool-pen','pic-tool-eraser','pic-tool-clear'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.disabled=!drawing;
+  });
+
+  /* Sync strokes */
+  const sc=state.strokeCount||0;
+  if(sc!==picLastStrokeCount)picRedrawStrokes(state.strokes||{});
+
+  /* Top bar info */
+  document.getElementById('pic-info').textContent='Round '+state.round+'/'+state.totalRounds;
+  const wordEl=document.getElementById('pic-word-display');
+  if(phase==='drawing'){
+    if(picIsDrawer){wordEl.textContent=b64d(state.wordEncoded||'');wordEl.classList.remove('hidden');}
+    else{const w=b64d(state.wordEncoded||'');wordEl.textContent=Array.from({length:w.length},()=>'_').join(' ');wordEl.classList.add('hidden');}
+  }else if(phase==='roundover'){wordEl.textContent=b64d(state.wordEncoded||'');wordEl.classList.remove('hidden');}
+  else{wordEl.textContent='- - -';wordEl.classList.remove('hidden');}
+
+  /* Timer */
+  if(phase==='drawing'&&state.startedAt){
+    const rem=Math.max(0,PIC_TURN_SECONDS-Math.floor((Date.now()-state.startedAt)/1000));
+    picUpdateTimer(rem);
+    if(picTimerInterval)clearInterval(picTimerInterval);
+    if(rem>0){
+      picTimerInterval=setInterval(()=>{
+        if(!picState?.startedAt)return;
+        const r=Math.max(0,PIC_TURN_SECONDS-Math.floor((Date.now()-picState.startedAt)/1000));
+        picUpdateTimer(r);
+        if(r===0){clearInterval(picTimerInterval);picTimerInterval=null;if(isHost&&picState?.phase==='drawing')picEndTurn(picState);}
+      },1000);
+    }
+  }else{
+    if(picTimerInterval){clearInterval(picTimerInterval);picTimerInterval=null;}
+    picUpdateTimer(phase==='roundover'?0:PIC_TURN_SECONDS);
+  }
+
+  /* Score panel */
+  const sl=document.getElementById('pic-score-list');sl.innerHTML='';
+  Object.entries(state.players||{})
+    .sort((a,b)=>(state.scores[b[0]]||0)-(state.scores[a[0]]||0))
+    .forEach(([pid,p])=>{
+      const isD=pid===state.currentDrawer,g=(state.guessedBy||[]).includes(pid);
+      const item=document.createElement('div');
+      item.className='pic-score-item'+(isD?' drawing':g?' guessed':'');
+      item.innerHTML=`<span class="psi-name">${p.name}${pid===myId?' ★':''}</span><span class="psi-pts">${state.scores[pid]||0}</span><span class="psi-tag ${isD?'drawing':g?'correct':''}">${isD?'✏':g?'✓':''}</span>`;
+      sl.appendChild(item);
+    });
+
+  /* Overlays */
+  const wcEl=document.getElementById('pic-word-choice');
+  const wwEl=document.getElementById('pic-waiting-word');
+  const guessOvEl=document.getElementById('pic-guess-overlay');
+  const roundOvEl=document.getElementById('pic-round-ov');
+  wcEl.style.display='none';wwEl.style.display='none';
+  guessOvEl.classList.remove('show');roundOvEl.classList.remove('show');
+
+  if(phase==='choosing'){
+    if(picIsDrawer){
+      wcEl.style.display='flex';
+      const opts=document.getElementById('pic-word-opts');opts.innerHTML='';
+      (state.wordOptions||[]).forEach(w=>{
+        const btn=document.createElement('button');btn.className='pic-word-opt';btn.textContent=w;
+        btn.addEventListener('click',()=>picChooseWord(w));opts.appendChild(btn);
+      });
+    }else{
+      wwEl.style.display='flex';
+      document.getElementById('pic-waiting-name').textContent=state.players?.[state.currentDrawer]?.name||'Someone';
+    }
+  }else if(phase==='drawing'){
+    if(picIsDrawer){
+      guessOvEl.classList.add('show');
+      const container=document.getElementById('pic-guesser-btns');container.innerHTML='';
+      const ag=state.guessedBy||[];
+      Object.entries(state.players||{}).forEach(([pid,p])=>{
+        if(pid===myId)return;
+        const btn=document.createElement('button');btn.className='pic-guesser-btn';
+        btn.textContent=p.name+(ag.includes(pid)?' ✓':'');btn.disabled=ag.includes(pid);
+        btn.addEventListener('click',()=>picAwardGuesser(pid));container.appendChild(btn);
+      });
+      const endBtn=document.createElement('button');
+      endBtn.style.cssText='padding:7px 14px;border-radius:8px;border:1px solid rgba(231,76,60,0.4);background:rgba(231,76,60,0.1);color:#ff9999;font-family:"DM Mono",monospace;font-size:0.76rem;cursor:pointer;transition:all 0.15s;margin-top:2px;width:100%;';
+      endBtn.textContent='End Turn →';
+      endBtn.addEventListener('click',()=>{if(isHost&&picState?.phase==='drawing')picEndTurn(picState);});
+      container.appendChild(endBtn);
+    }
+  }else if(phase==='roundover'){
+    document.getElementById('pic-word-reveal').textContent='The word was: "'+b64d(state.wordEncoded||'')+'"';
+    const sc2=document.getElementById('pic-round-scores');sc2.innerHTML='';
+    Object.entries(state.players||{})
+      .sort((a,b)=>(state.scores[b[0]]||0)-(state.scores[a[0]]||0))
+      .forEach(([pid,p])=>{
+        const d=document.createElement('div');d.className='prs-item';
+        const earned=state.roundScores?.[pid]||0;
+        d.innerHTML=`<span class="prs-name">${p.name}${pid===myId?' ★':''}</span><span class="prs-pts">${state.scores[pid]||0} pts${earned>0?' (+'+earned+')':''}</span>`;
+        sc2.appendChild(d);
+      });
+    document.getElementById('pic-host-btns-round').style.display=isHost?'flex':'none';
+    document.getElementById('pic-guest-wait').style.display=isHost?'none':'block';
+    roundOvEl.classList.add('show');
+  }
+}
+
+function picUpdateTimer(rem){
+  const pct=Math.max(0,(rem/PIC_TURN_SECONDS)*100);
+  const bar=document.getElementById('pic-timer-bar');const num=document.getElementById('pic-timer-num');
+  if(bar){bar.style.width=pct+'%';bar.classList.toggle('urgent',rem<=15);}
+  if(num)num.textContent=rem;
+}
+
+async function picChooseWord(word){
+  if(!picState||!picIsDrawer)return;
+  const state=JSON.parse(JSON.stringify(picState));
+  state.wordEncoded=b64e(word);state.wordOptions=null;
+  state.phase='drawing';state.startedAt=Date.now();
+  state.strokes={};state.strokeCount=0;state.guessedBy=[];state.roundScores={};
+  picLastStrokeCount=0;
+  if(picCtx&&picCanvas){picCtx.fillStyle='#fafaf8';picCtx.fillRect(0,0,picCanvas.width,picCanvas.height);}
+  await set(gameRef,state);
+}
+
+async function picAwardGuesser(guesserPid){
+  if(!picState||!picIsDrawer||picState.phase!=='drawing')return;
+  const state=JSON.parse(JSON.stringify(picState));
+  const ag=Array.isArray(state.guessedBy)?[...state.guessedBy]:[];
+  if(ag.includes(guesserPid))return;
+  ag.push(guesserPid);
+  if(!state.roundScores)state.roundScores={};
+  state.scores[guesserPid]=(state.scores[guesserPid]||0)+10;
+  state.roundScores[guesserPid]=(state.roundScores[guesserPid]||0)+10;
+  const drawerBonus=Math.max(2,10-(ag.length-1)*2);
+  state.scores[myId]=(state.scores[myId]||0)+drawerBonus;
+  state.roundScores[myId]=(state.roundScores[myId]||0)+drawerBonus;
+  state.guessedBy=ag;
+  await set(gameRef,state);
+}
+
+async function picEndTurn(state){
+  if(!isHost)return;
+  const s=JSON.parse(JSON.stringify(state));
+  s.phase='roundover';
+  if(picTimerInterval){clearInterval(picTimerInterval);picTimerInterval=null;}
+  await set(gameRef,s);
+}
+
+async function picHostNextRound(){
+  if(!isHost||!picState)return;
+  document.getElementById('pic-round-ov').classList.remove('show');
+  const state=JSON.parse(JSON.stringify(picState));
+  const nextIndex=(state.drawerIndex||0)+1;
+  if(nextIndex>=state.drawerOrder.length){
+    const sorted=Object.entries(state.scores||{})
+      .map(([pid])=>({name:state.players[pid]?.name||pid,pts:state.scores[pid]||0}))
+      .sort((a,b)=>b.pts-a.pts);
+    await update(ref(db,`rooms/${roomCode}`),{status:'ended'});
+    showGameOver(sorted.length?'🏆 '+sorted[0].name+' wins with '+sorted[0].pts+' pts!':'Game over!');return;
+  }
+  const words=picPickWords();
+  state.drawerIndex=nextIndex;state.currentDrawer=state.drawerOrder[nextIndex];
+  state.wordOptions=words;state.wordEncoded=null;state.phase='choosing';
+  state.round=nextIndex+1;state.startedAt=null;
+  state.strokes={};state.strokeCount=0;state.guessedBy=[];state.roundScores={};
+  picLastStrokeCount=0;
+  if(picCtx&&picCanvas){picCtx.fillStyle='#fafaf8';picCtx.fillRect(0,0,picCanvas.width,picCanvas.height);}
+  await set(gameRef,state);
+}
+
+async function picHostEnd(){
+  if(!isHost)return;
+  document.getElementById('pic-round-ov').classList.remove('show');
+  if(picTimerInterval){clearInterval(picTimerInterval);picTimerInterval=null;}
+  const sorted=Object.entries(picState?.scores||{})
+    .map(([pid])=>({name:picState.players[pid]?.name||pid,pts:picState.scores[pid]||0}))
+    .sort((a,b)=>b.pts-a.pts);
+  await update(ref(db,`rooms/${roomCode}`),{status:'ended'});
+  showGameOver(sorted.length?'🏆 '+sorted[0].name+' wins with '+sorted[0].pts+' pts!':'Game over!');
 }
 
 </script>
