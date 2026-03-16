@@ -911,15 +911,13 @@ async function bjHostEnd(){if(!isHost)return;document.getElementById('bj-res-ov'
 /* ══════════════════════════════════════════════════════
    ░░░░░░░░░  CATEGORIES GAME  ░░░░░░░░░░░░░░░░░░░░░░
    ══════════════════════════════════════════════════════
-   Phases: waiting → writing → review → scores
-   - Host starts round. Random letter chosen.
+   Phases: writing → review → scores
    - All players type answers for each category (60s timer).
-   - After time or all submit → review phase.
-   - Review: see all answers. Anyone can challenge a word.
-     (The word's author cannot vote on their own word.)
-   - Votes: majority "invalid" = word removed, 0 pts.
-   - Scoring: unique valid answer = 10pts. Duplicate = 5pts. Empty/invalid = 0pts.
-   - After review host continues to next round or ends.
+   - Timer keeps running for all players even after submitting.
+   - After time OR all submit → auto-moves to review.
+   - Review: see all answers. Anyone except word author can challenge.
+   - Votes: majority "invalid" removes the word (author can't vote).
+   - Scoring: unique valid = 10pts, duplicate valid = 5pts, blank/invalid = 0pts.
 ══════════════════════════════════════════════════════ */
 
 const CAT_CATEGORIES = [
@@ -928,38 +926,31 @@ const CAT_CATEGORIES = [
 const CAT_LETTERS = 'ABCDEFGHIJKLMNOPRSTW'.split('');
 const CAT_ROUND_SECONDS = 60;
 
+/* ── Helper: always use string keys for category index in Firebase ── */
+function cKey(ci){ return String(ci); }
+
 async function startCat(){
   const ps=await get(ref(db,`rooms/${roomCode}/players`));
   const pl=Object.entries(ps.val()||{}).map(([id,p])=>({id,...p})).sort((a,b)=>a.seat-b.seat);
-  // Pick 6 random categories
   const cats=shuffle([...CAT_CATEGORIES]).slice(0,6);
   const letter=CAT_LETTERS[Math.floor(Math.random()*CAT_LETTERS.length)];
   const gs={
-    phase:'writing',
-    letter,
-    categories:cats,
-    round:1,
-    startedAt:Date.now(),
-    durationSec:CAT_ROUND_SECONDS,
-    players:{},
-    answers:{},   // answers[pid][catIdx] = { word, submitted }
-    challenges:{},// challenges[pid][catIdx] = { votes:{uid:bool}, active:bool }
-    scores:{},    // scores[pid] = cumulative score
-    roundScores:{},// roundScores[pid] = this round's score
+    phase:'writing', letter, categories:cats, round:1,
+    startedAt:Date.now(), durationSec:CAT_ROUND_SECONDS,
+    players:{}, answers:{}, challenges:{}, scores:{}, roundScores:{},
   };
   pl.forEach((p,i)=>{
     gs.players[p.id]={name:p.name,seat:i,submitted:false};
     gs.scores[p.id]=0;
     gs.answers[p.id]={};
-    cats.forEach((_,ci)=>{gs.answers[p.id][ci]='';});
+    cats.forEach((_,ci)=>{ gs.answers[p.id][cKey(ci)]=''; });
   });
   await set(ref(db,`rooms/${roomCode}/game`),gs);
   await update(ref(db,`rooms/${roomCode}`),{status:'playing-cat'});
 }
 
 function enterCat(){
-  if(inGame)return;inGame=true;
-  document.getElementById('bj-roomcode').textContent=`Room: ${roomCode}`;
+  if(inGame)return; inGame=true;
   show('s-cat');
   gameRef=ref(db,`rooms/${roomCode}/game`);
   onValue(gameRef,snap=>{
@@ -969,20 +960,28 @@ function enterCat(){
   });
 }
 
-/* ── Local input buffer so typing doesn't get wiped on every render ── */
-let catLocalAnswers = {}; // catLocalAnswers[catIdx] = string
+/* ── Local input buffer — tracks current typing without wiping on re-render ── */
+let catLocalAnswers = {};   // { "0": "word", "1": "word", ... }
+let catLastRound    = null; // detect round changes so we can wipe local buffer
 
 function renderCat(state){
   if(!state?.players)return;
+
+  /* BUG FIX 3: wipe local answers when a new round starts */
+  if(catLastRound !== state.round){
+    catLocalAnswers = {};
+    catLastRound = state.round;
+  }
+
   const phase=state.phase;
   document.getElementById('cat-letter').textContent=state.letter||'?';
-  document.getElementById('cat-phase-label').textContent={writing:'Writing',review:'Reviewing',scores:'Scores',waiting:'Waiting'}[phase]||phase;
+  document.getElementById('cat-phase-label').textContent={writing:'Writing',review:'Reviewing',scores:'Scores'}[phase]||phase;
 
   const body=document.getElementById('cat-body');
   const bar=document.getElementById('cat-bottom-bar');
-  body.innerHTML='';bar.innerHTML='';
+  body.innerHTML=''; bar.innerHTML='';
 
-  if(phase==='writing') renderCatWriting(state,body,bar);
+  if(phase==='writing')     renderCatWriting(state,body,bar);
   else if(phase==='review') renderCatReview(state,body,bar);
   else if(phase==='scores') renderCatScores(state,body,bar);
 }
@@ -990,40 +989,49 @@ function renderCat(state){
 /* ── WRITING PHASE ── */
 function renderCatWriting(state,body,bar){
   const myP=state.players[myId];
-  const alreadySubmitted=myP?.submitted;
+  const alreadySubmitted=!!myP?.submitted;
   const elapsed=Math.floor((Date.now()-state.startedAt)/1000);
   const remaining=Math.max(0,state.durationSec-elapsed);
-  const pct=Math.max(0,(remaining/state.durationSec)*100);
+  const pct=(remaining/state.durationSec)*100;
 
-  // Timer bar
+  /* Timer bar — always shown regardless of submission status */
   const timerWrap=document.createElement('div');
-  timerWrap.innerHTML=`<div class="cat-timer-label" id="cat-timer-txt">⏱ ${remaining}s remaining</div><div class="cat-timer-bar-wrap"><div class="cat-timer-bar${remaining<=15?' urgent':''}" id="cat-timer-bar" style="width:${pct}%"></div></div>`;
+  timerWrap.innerHTML=`
+    <div class="cat-timer-label" id="cat-timer-txt">⏱ ${remaining}s remaining</div>
+    <div class="cat-timer-bar-wrap">
+      <div class="cat-timer-bar${remaining<=15?' urgent':''}" id="cat-timer-bar" style="width:${Math.max(0,pct)}%"></div>
+    </div>`;
   body.appendChild(timerWrap);
 
-  // Start/update client timer
-  if(catTimerInterval)clearInterval(catTimerInterval);
-  if(!alreadySubmitted && remaining>0){
+  /* BUG FIX 1 & 4: Always run the timer, even after submitting.
+     The timer fires auto-submit when it hits 0, and also handles
+     the case where a player submitted but needs to see countdown. */
+  if(catTimerInterval) clearInterval(catTimerInterval);
+  if(remaining>0){
     catTimerInterval=setInterval(()=>{
-      const el=document.getElementById('cat-timer-txt');
-      const bar=document.getElementById('cat-timer-bar');
-      if(!el||!bar)return;
-      const now=Math.floor((Date.now()-state.startedAt)/1000);
-      const rem=Math.max(0,state.durationSec-now);
+      const txtEl=document.getElementById('cat-timer-txt');
+      const barEl=document.getElementById('cat-timer-bar');
+      if(!txtEl||!barEl){ clearInterval(catTimerInterval); catTimerInterval=null; return; }
+      const nowElapsed=Math.floor((Date.now()-state.startedAt)/1000);
+      const rem=Math.max(0,state.durationSec-nowElapsed);
       const p=Math.max(0,(rem/state.durationSec)*100);
-      el.textContent=`⏱ ${rem}s remaining`;
-      bar.style.width=p+'%';
-      bar.classList.toggle('urgent',rem<=15);
+      txtEl.textContent=`⏱ ${rem}s remaining`;
+      barEl.style.width=p+'%';
+      barEl.classList.toggle('urgent',rem<=15);
       if(rem===0){
-        clearInterval(catTimerInterval);catTimerInterval=null;
-        // Auto-submit if time runs out
+        clearInterval(catTimerInterval); catTimerInterval=null;
+        /* Auto-submit for anyone who hasn't yet */
         if(!catState?.players[myId]?.submitted) catAutoSubmit();
       }
     },1000);
+  } else if(remaining===0 && !alreadySubmitted){
+    /* Edge case: rendered with 0 remaining, trigger immediately */
+    catAutoSubmit();
   }
 
-  // Who has submitted
+  /* Submission status pills */
   const subBox=document.createElement('div');
-  subBox.style.cssText='display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;';
+  subBox.style.cssText='display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;';
   Object.entries(state.players).forEach(([pid,p])=>{
     const pill=document.createElement('span');
     pill.style.cssText=`font-size:0.6rem;padding:3px 8px;border-radius:20px;border:1px solid;${p.submitted?'background:rgba(46,204,113,0.15);border-color:rgba(46,204,113,0.4);color:#2ecc71':'background:rgba(0,0,0,0.3);border-color:rgba(255,255,255,0.1);color:var(--muted)'}`;
@@ -1033,233 +1041,236 @@ function renderCatWriting(state,body,bar){
   body.appendChild(subBox);
 
   if(alreadySubmitted){
+    /* Show submitted message but keep timer visible above */
     const done=document.createElement('div');
-    done.className='cat-submitted-label';done.style.padding='20px';
+    done.className='cat-submitted-label'; done.style.padding='16px';
     done.textContent='✓ Answers submitted — waiting for others...';
     body.appendChild(done);
     return;
   }
 
-  // Answer grid
-  const grid=document.createElement('div');grid.className='cat-answer-grid';
+  /* Answer inputs */
+  const grid=document.createElement('div'); grid.className='cat-answer-grid';
   state.categories.forEach((cat,ci)=>{
-    const row=document.createElement('div');row.className='cat-answer-row';
-    const lbl=document.createElement('label');lbl.textContent=cat;
+    const k=cKey(ci);
+    const row=document.createElement('div'); row.className='cat-answer-row';
+    const lbl=document.createElement('label'); lbl.textContent=cat;
     const inp=document.createElement('input');
-    inp.type='text';inp.maxLength=30;inp.placeholder=`${state.letter}...`;
-    inp.value=catLocalAnswers[ci]||'';
-    inp.addEventListener('input',e=>{catLocalAnswers[ci]=e.target.value.trim();});
-    row.appendChild(lbl);row.appendChild(inp);
+    inp.type='text'; inp.maxLength=30; inp.placeholder=`${state.letter}...`;
+    /* BUG FIX 3: use catLocalAnswers (wiped on new round) */
+    inp.value=catLocalAnswers[k]||'';
+    inp.addEventListener('input',e=>{ catLocalAnswers[k]=e.target.value; });
+    row.appendChild(lbl); row.appendChild(inp);
     grid.appendChild(row);
   });
   body.appendChild(grid);
 
-  // Submit button
   const submitBtn=document.createElement('button');
-  submitBtn.className='cat-submit-btn';submitBtn.textContent='Submit Answers';
+  submitBtn.className='cat-submit-btn'; submitBtn.textContent='Submit Answers';
   submitBtn.addEventListener('click',catSubmitAnswers);
   bar.appendChild(submitBtn);
 }
 
 async function catAutoSubmit(){
-  if(!catState||catState.players[myId]?.submitted)return;
+  if(!catState||catState.players[myId]?.submitted) return;
   await catSubmitAnswers();
 }
 
 async function catSubmitAnswers(){
-  if(!catState)return;
+  if(!catState) return;
   const state=JSON.parse(JSON.stringify(catState));
   const myP=state.players[myId];
-  if(!myP||myP.submitted)return;
-  // Save answers (trim, keep empty as '')
+  if(!myP||myP.submitted) return;
+
+  /* Save current local answers into state */
   state.categories.forEach((_,ci)=>{
-    state.answers[myId][ci]=(catLocalAnswers[ci]||'').trim();
+    const k=cKey(ci);
+    state.answers[myId][k]=(catLocalAnswers[k]||'').trim();
   });
   myP.submitted=true;
-  // Check if all submitted → move to review (host decides, but let's auto-advance on all submitted)
+
+  /* BUG FIX 2: ANY player who makes everyone-submitted triggers review,
+     not just the host. The last submitter (whoever they are) moves the game. */
   const allSub=Object.values(state.players).every(p=>p.submitted);
-  if(allSub&&isHost){
-    if(catTimerInterval){clearInterval(catTimerInterval);catTimerInterval=null;}
-    catMoveToReview(state);
-  }else{
+  if(allSub){
+    if(catTimerInterval){ clearInterval(catTimerInterval); catTimerInterval=null; }
+    await catMoveToReview(state);
+  } else {
     await set(gameRef,state);
   }
 }
 
-function catMoveToReview(state){
-  // Build challenges structure: challenges[pid][catIdx] = {active:false, votes:{}}
-  if(!state.challenges)state.challenges={};
+async function catMoveToReview(state){
+  /* BUG FIX 6: await the set call */
+  if(!state.challenges) state.challenges={};
   Object.keys(state.players).forEach(pid=>{
-    if(!state.challenges[pid])state.challenges[pid]={};
+    if(!state.challenges[pid]) state.challenges[pid]={};
     state.categories.forEach((_,ci)=>{
-      if(!state.challenges[pid][ci])state.challenges[pid][ci]={active:false,votes:{}};
+      const k=cKey(ci);
+      if(!state.challenges[pid][k]) state.challenges[pid][k]={active:false,votes:{}};
     });
   });
   state.phase='review';
-  set(gameRef,state);
+  await set(gameRef,state);
 }
 
 /* ── REVIEW PHASE ── */
 function renderCatReview(state,body,bar){
-  if(catTimerInterval){clearInterval(catTimerInterval);catTimerInterval=null;}
+  if(catTimerInterval){ clearInterval(catTimerInterval); catTimerInterval=null; }
   const playerList=Object.entries(state.players).sort((a,b)=>a[1].seat-b[1].seat);
   const playerIds=playerList.map(([id])=>id);
   const n=playerIds.length;
 
   state.categories.forEach((cat,ci)=>{
-    const sec=document.createElement('div');sec.className='cat-review-section';
-    const catLabel=document.createElement('div');catLabel.className='cat-review-cat';catLabel.textContent=cat.toUpperCase();
+    const k=cKey(ci); /* BUG FIX 5: always use string key */
+    const sec=document.createElement('div'); sec.className='cat-review-section';
+    const catLabel=document.createElement('div'); catLabel.className='cat-review-cat';
+    catLabel.textContent=cat.toUpperCase();
     sec.appendChild(catLabel);
 
-    // Collect words for this category across players
-    const words=playerIds.map(pid=>(state.answers?.[pid]?.[ci]||'').trim());
-
-    // Find duplicates (case-insensitive, ignore empty)
+    /* Collect words and build frequency map */
+    const words=playerIds.map(pid=>(state.answers?.[pid]?.[k]||'').trim());
     const wordLower=words.map(w=>w.toLowerCase());
-    const freq={};wordLower.forEach(w=>{if(w)freq[w]=(freq[w]||0)+1;});
+    const freq={}; wordLower.forEach(w=>{ if(w) freq[w]=(freq[w]||0)+1; });
 
     playerIds.forEach((pid,pi)=>{
       const p=state.players[pid];
       const word=words[pi];
-      const challenge=state.challenges?.[pid]?.[ci]||{active:false,votes:{}};
+      /* BUG FIX 5: use string key when reading challenges */
+      const challenge=state.challenges?.[pid]?.[k]||{active:false,votes:{}};
       const isMyWord=pid===myId;
-      const voteCount=Object.keys(challenge.votes||{}).length;
-      const invalidVotes=Object.values(challenge.votes||{}).filter(v=>v===false).length;
-      const validVotes=Object.values(challenge.votes||{}).filter(v=>v===true).length;
-      const invalidated=challenge.active&&invalidVotes>validVotes&&voteCount>=(n-1); // majority invalid
+      const votesObj=challenge.votes||{};
+      const invalidVotes=Object.values(votesObj).filter(v=>v===false).length;
+      const validVotes=Object.values(votesObj).filter(v=>v===true).length;
+      const voteCount=Object.keys(votesObj).length;
+      /* Majority invalid = more invalid votes than valid votes,
+         AND at least one vote has been cast (avoid 0-0 triggering) */
+      const invalidated=challenge.active && voteCount>0 && invalidVotes>validVotes;
 
-      const row=document.createElement('div');row.className='cat-review-answer';
-
-      const nameEl=document.createElement('div');nameEl.className='cra-name';nameEl.textContent=p.name+(isMyWord?' ★':'');
+      const row=document.createElement('div'); row.className='cat-review-answer';
+      const nameEl=document.createElement('div'); nameEl.className='cra-name';
+      nameEl.textContent=p.name+(isMyWord?' ★':'');
 
       const wordEl=document.createElement('div');
-      if(!word){wordEl.className='cra-word empty';wordEl.textContent='(no answer)';}
-      else if(invalidated){wordEl.className='cra-word invalid';wordEl.textContent=word;}
-      else if(freq[word.toLowerCase()]>1){wordEl.className='cra-word duplicate';wordEl.textContent=word;}
-      else{wordEl.className='cra-word';wordEl.textContent=word;}
+      if(!word){ wordEl.className='cra-word empty'; wordEl.textContent='(no answer)'; }
+      else if(invalidated){ wordEl.className='cra-word invalid'; wordEl.textContent=word; }
+      else if(freq[word.toLowerCase()]>1){ wordEl.className='cra-word duplicate'; wordEl.textContent=word; }
+      else{ wordEl.className='cra-word'; wordEl.textContent=word; }
 
-      row.appendChild(nameEl);row.appendChild(wordEl);
+      row.appendChild(nameEl); row.appendChild(wordEl);
 
-      // Challenge / voting
       if(word){
         if(!challenge.active){
-          // Anyone except the word's author can challenge
           if(!isMyWord){
             const cBtn=document.createElement('button');
-            cBtn.className='cat-challenge-btn';cBtn.textContent='Challenge';
-            cBtn.addEventListener('click',()=>catChallenge(pid,ci));
+            cBtn.className='cat-challenge-btn'; cBtn.textContent='Challenge';
+            /* BUG FIX 5: pass string key */
+            cBtn.addEventListener('click',()=>catChallenge(pid,k));
             row.appendChild(cBtn);
           }
-        }else{
-          // Challenge is active — show vote buttons (not to word author)
-          const myVote=challenge.votes?.[myId];
-          if(!isMyWord&&myVote===undefined){
-            const vv=document.createElement('button');vv.className='cat-vote-btn cvb-valid';vv.textContent='✓ Valid';
-            vv.addEventListener('click',()=>catVote(pid,ci,true));
-            const vi=document.createElement('button');vi.className='cat-vote-btn cvb-invalid';vi.textContent='✗ Invalid';
-            vi.addEventListener('click',()=>catVote(pid,ci,false));
-            row.appendChild(vv);row.appendChild(vi);
-          }else if(!isMyWord&&myVote!==undefined){
-            const voted=document.createElement('span');voted.className='cat-vote-tally';
-            voted.textContent=`Voted: ${myVote?'valid':'invalid'} (${validVotes}v/${invalidVotes}x of ${n-1})`;
+        } else {
+          /* Challenge active — show voting UI */
+          const myVote=votesObj[myId]; /* undefined if not voted */
+          if(!isMyWord && myVote===undefined){
+            const vv=document.createElement('button');
+            vv.className='cat-vote-btn cvb-valid'; vv.textContent='✓ Valid';
+            vv.addEventListener('click',()=>catVote(pid,k,true));
+            const vi=document.createElement('button');
+            vi.className='cat-vote-btn cvb-invalid'; vi.textContent='✗ Invalid';
+            vi.addEventListener('click',()=>catVote(pid,k,false));
+            row.appendChild(vv); row.appendChild(vi);
+          } else if(!isMyWord && myVote!==undefined){
+            const voted=document.createElement('span'); voted.className='cat-vote-tally';
+            voted.textContent=`Voted: ${myVote?'valid':'invalid'} · ${validVotes}✓ ${invalidVotes}✗`;
             row.appendChild(voted);
-          }else if(isMyWord){
-            const ownerTag=document.createElement('span');ownerTag.className='cat-vote-tally';
-            ownerTag.textContent=`Challenged! (${validVotes}v/${invalidVotes}x)`;
+          } else if(isMyWord){
+            const ownerTag=document.createElement('span'); ownerTag.className='cat-vote-tally';
+            ownerTag.textContent=`Challenged! · ${validVotes}✓ ${invalidVotes}✗`;
             row.appendChild(ownerTag);
           }
         }
       }
-
       sec.appendChild(row);
     });
     body.appendChild(sec);
   });
 
-  // Host-only: advance to scores
   if(isHost){
     const nextBtn=document.createElement('button');
-    nextBtn.className='cat-btn catb-gold';nextBtn.textContent='Calculate Scores →';
-    nextBtn.addEventListener('click',()=>catCalculateScores());
-    bar.appendChild(nextBtn);
+    nextBtn.className='cat-btn catb-gold'; nextBtn.textContent='Calculate Scores →';
+    nextBtn.addEventListener('click',catCalculateScores);
     const lobbyBtn=document.createElement('button');
-    lobbyBtn.className='cat-btn catb-lobby';lobbyBtn.textContent='Change Game';
+    lobbyBtn.className='cat-btn catb-lobby'; lobbyBtn.textContent='Change Game';
     lobbyBtn.addEventListener('click',returnToRoom);
-    bar.appendChild(lobbyBtn);
     const endBtn=document.createElement('button');
-    endBtn.className='cat-btn catb-end';endBtn.textContent='End Game';
+    endBtn.className='cat-btn catb-end'; endBtn.textContent='End Game';
     endBtn.addEventListener('click',catHostEnd);
-    bar.appendChild(endBtn);
-  }else{
-    const w=document.createElement('div');w.className='wwait';w.style.padding='10px 0';w.textContent='Waiting for host to advance...';
+    bar.appendChild(nextBtn); bar.appendChild(lobbyBtn); bar.appendChild(endBtn);
+  } else {
+    const w=document.createElement('div'); w.className='wwait'; w.style.padding='10px 0';
+    w.textContent='Waiting for host to advance...';
     bar.appendChild(w);
   }
 }
 
-async function catChallenge(targetPid,catIdx){
-  if(!catState)return;
+/* BUG FIX 5: catChallenge and catVote now receive string key k, not numeric ci */
+async function catChallenge(targetPid, k){
+  if(!catState) return;
   const state=JSON.parse(JSON.stringify(catState));
-  if(!state.challenges)state.challenges={};
-  if(!state.challenges[targetPid])state.challenges[targetPid]={};
-  if(!state.challenges[targetPid][catIdx])state.challenges[targetPid][catIdx]={active:false,votes:{}};
-  state.challenges[targetPid][catIdx].active=true;
+  if(!state.challenges) state.challenges={};
+  if(!state.challenges[targetPid]) state.challenges[targetPid]={};
+  if(!state.challenges[targetPid][k]) state.challenges[targetPid][k]={active:false,votes:{}};
+  state.challenges[targetPid][k].active=true;
   await set(gameRef,state);
 }
 
-async function catVote(targetPid,catIdx,isValid){
-  if(!catState)return;
-  const state=JSON.parse(JSON.stringify(catState));
-  if(!state.challenges?.[targetPid]?.[catIdx])return;
-  state.challenges[targetPid][catIdx].votes[myId]=isValid;
-  await set(gameRef,state);
+async function catVote(targetPid, k, isValid){
+  if(!catState) return;
+  /* BUG FIX 5: use targeted update path so we only write the vote, avoiding
+     race conditions where two voters overwrite each other's full state object */
+  const votePath=`rooms/${roomCode}/game/challenges/${targetPid}/${k}/votes/${myId}`;
+  await set(ref(db, votePath), isValid);
 }
 
-function catCalculateScores(){
-  if(!catState||!isHost)return;
+async function catCalculateScores(){
+  /* BUG FIX 7: await the set call */
+  if(!catState||!isHost) return;
   const state=JSON.parse(JSON.stringify(catState));
   const playerIds=Object.keys(state.players);
   const n=playerIds.length;
   const roundScores={};
-  playerIds.forEach(pid=>{roundScores[pid]=0;});
+  playerIds.forEach(pid=>{ roundScores[pid]=0; });
 
   state.categories.forEach((_,ci)=>{
-    // Collect valid words for this category
-    const words={};
+    const k=cKey(ci);
+    const wordMap={};
     playerIds.forEach(pid=>{
-      const w=(state.answers?.[pid]?.[ci]||'').trim();
-      const challenge=state.challenges?.[pid]?.[ci]||{active:false,votes:{}};
+      const w=(state.answers?.[pid]?.[k]||'').trim();
+      const challenge=state.challenges?.[pid]?.[k]||{active:false,votes:{}};
       const invalidVotes=Object.values(challenge.votes||{}).filter(v=>v===false).length;
       const validVotes=Object.values(challenge.votes||{}).filter(v=>v===true).length;
       const voteCount=Object.keys(challenge.votes||{}).length;
-      // Word is invalidated if: challenged AND majority voted invalid
-      // Majority = more than half of eligible voters (everyone except the word's author)
-      const eligibleVoters=n-1;
-      const invalidated=challenge.active&&voteCount>=Math.ceil(eligibleVoters/2)&&invalidVotes>validVotes;
-      words[pid]={w,invalidated};
+      /* Word invalidated if majority voted invalid (at least 1 vote) */
+      const invalidated=challenge.active&&voteCount>0&&invalidVotes>validVotes;
+      wordMap[pid]={w,invalidated};
     });
-
-    // Count non-empty non-invalidated words (case-insensitive)
-    const validWords=Object.entries(words).filter(([,v])=>v.w&&!v.invalidated).map(([pid,v])=>({pid,w:v.w.toLowerCase()}));
-    const freq={};validWords.forEach(({w})=>{freq[w]=(freq[w]||0)+1;});
-
-    validWords.forEach(({pid,w})=>{
-      const isDup=freq[w]>1;
-      roundScores[pid]+=(isDup?5:10);
-    });
+    const validWords=Object.entries(wordMap)
+      .filter(([,v])=>v.w&&!v.invalidated)
+      .map(([pid,v])=>({pid,w:v.w.toLowerCase()}));
+    const freq={}; validWords.forEach(({w})=>{ freq[w]=(freq[w]||0)+1; });
+    validWords.forEach(({pid,w})=>{ roundScores[pid]+=(freq[w]>1?5:10); });
   });
 
-  // Save round scores and update cumulative
   state.roundScores=roundScores;
-  playerIds.forEach(pid=>{state.scores[pid]=(state.scores[pid]||0)+roundScores[pid];});
+  playerIds.forEach(pid=>{ state.scores[pid]=(state.scores[pid]||0)+roundScores[pid]; });
   state.phase='scores';
-  set(gameRef,state);
+  await set(gameRef,state);
 }
 
 /* ── SCORES PHASE ── */
 function renderCatScores(state,body,bar){
   if(catTimerInterval){clearInterval(catTimerInterval);catTimerInterval=null;}
 
-  // Scoreboard
   const sb=document.createElement('div');sb.className='cat-scoreboard';
   const h3=document.createElement('h3');h3.textContent=`Round ${state.round} Scores`;
   sb.appendChild(h3);
@@ -1275,31 +1286,36 @@ function renderCatScores(state,body,bar){
   });
   body.appendChild(sb);
 
-  // Per-category answers review (compact)
-  const reviewBox=document.createElement('div');reviewBox.className='cat-scoreboard';reviewBox.style.marginTop='0';
+  /* Per-category answer breakdown — FIX: use string keys */
+  const reviewBox=document.createElement('div');reviewBox.className='cat-scoreboard';
   const rh=document.createElement('h3');rh.textContent='Answers This Round';reviewBox.appendChild(rh);
 
   const playerIds=Object.entries(state.players).sort((a,b)=>a[1].seat-b[1].seat).map(([id])=>id);
+  const n=playerIds.length;
+
   state.categories.forEach((cat,ci)=>{
+    const k=cKey(ci); /* use string key */
     const catLabel=document.createElement('div');catLabel.className='cat-review-cat';catLabel.style.marginTop='10px';catLabel.textContent=cat.toUpperCase();
     reviewBox.appendChild(catLabel);
+
+    /* Build frequency map for this category */
+    const allWords=playerIds.map(pid=>(state.answers?.[pid]?.[k]||'').trim().toLowerCase()).filter(Boolean);
+    const freq={};allWords.forEach(ww=>{freq[ww]=(freq[ww]||0)+1;});
+
     playerIds.forEach(pid=>{
       const p=state.players[pid];
-      const w=(state.answers?.[pid]?.[ci]||'').trim();
-      const challenge=state.challenges?.[pid]?.[ci]||{active:false,votes:{}};
+      const w=(state.answers?.[pid]?.[k]||'').trim();
+      const challenge=state.challenges?.[pid]?.[k]||{active:false,votes:{}};
       const invalidVotes=Object.values(challenge.votes||{}).filter(v=>v===false).length;
       const validVotes=Object.values(challenge.votes||{}).filter(v=>v===true).length;
       const voteCount=Object.keys(challenge.votes||{}).length;
-      const n=Object.keys(state.players).length;
-      const invalidated=challenge.active&&voteCount>=Math.ceil((n-1)/2)&&invalidVotes>validVotes;
-      const words=playerIds.map(id=>(state.answers?.[id]?.[ci]||'').trim().toLowerCase()).filter(Boolean);
-      const freq={};words.forEach(ww=>{freq[ww]=(freq[ww]||0)+1;});
+      const invalidated=challenge.active&&voteCount>0&&invalidVotes>validVotes;
       const isDup=w&&freq[w.toLowerCase()]>1;
       let pts=0,ptsCls='cra-pts-zero';
       if(w&&!invalidated){pts=isDup?5:10;ptsCls=isDup?'cra-pts-half':'cra-pts-full';}
 
       const row=document.createElement('div');row.className='cat-review-answer';
-      const nameEl=document.createElement('div');nameEl.className='cra-name';nameEl.textContent=p.name;
+      const nameEl=document.createElement('div');nameEl.className='cra-name';nameEl.textContent=p.name+(pid===myId?' ★':'');
       const wordEl=document.createElement('div');
       if(!w){wordEl.className='cra-word empty';wordEl.textContent='(blank)';}
       else if(invalidated){wordEl.className='cra-word invalid';wordEl.textContent=w;}
@@ -1312,7 +1328,6 @@ function renderCatScores(state,body,bar){
   });
   body.appendChild(reviewBox);
 
-  // Buttons (host only)
   if(isHost){
     const nextRound=document.createElement('button');nextRound.className='cat-btn catb-gold';nextRound.textContent='Next Round';
     nextRound.addEventListener('click',catNextRound);
@@ -1331,12 +1346,16 @@ async function catNextRound(){
   if(!catState||!isHost)return;
   const state=JSON.parse(JSON.stringify(catState));
   const playerIds=Object.keys(state.players);
-  // New letter (different from last)
   let letter;
   do{letter=CAT_LETTERS[Math.floor(Math.random()*CAT_LETTERS.length)];}
   while(letter===state.letter);
   const cats=shuffle([...CAT_CATEGORIES]).slice(0,6);
+
+  /* BUG FIX 3: clear local answers AND reset the round tracker so
+     renderCat detects a new round and wipes catLocalAnswers for all clients */
   catLocalAnswers={};
+  catLastRound=null; /* force reset detection on next render */
+
   const ns={
     phase:'writing',letter,categories:cats,
     round:(state.round||1)+1,
@@ -1346,7 +1365,9 @@ async function catNextRound(){
   };
   playerIds.forEach(pid=>{
     ns.players[pid]={name:state.players[pid].name,seat:state.players[pid].seat,submitted:false};
-    ns.answers[pid]={};cats.forEach((_,ci)=>{ns.answers[pid][ci]='';});
+    ns.answers[pid]={};
+    /* FIX: use string keys in new round answers */
+    cats.forEach((_,ci)=>{ ns.answers[pid][cKey(ci)]=''; });
   });
   await set(gameRef,ns);
 }
